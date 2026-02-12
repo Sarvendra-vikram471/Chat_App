@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import HomePage from './pages/HomePage.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
 import LoginPage from './pages/LoginPage.jsx'
+import bgImage from './assets/bgImage.svg'
 
 const hasValidSession = () => {
   const cached = localStorage.getItem('qc_user')
@@ -20,7 +21,10 @@ function App() {
   const hasSession = hasValidSession()
 
   return (
-    <div className="min-h-screen bg-[url('./src/assets/bgImage.svg')] bg-no-repeat bg-center bg-cover">
+    <div
+      className="min-h-screen bg-no-repeat bg-center bg-cover"
+      style={{ backgroundImage: `url(${bgImage})` }}
+    >
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={hasSession ? <HomePage /> : <Navigate to="/login" replace />} />
