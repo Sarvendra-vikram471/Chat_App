@@ -142,6 +142,10 @@ io.on('connection', (socket) => {
     const { fromUserId, toUserId, text, imageUrl } = payload || {}
     if (!fromUserId || !toUserId) return
     if (!text && !imageUrl) return
+    if (typeof imageUrl === 'string' && imageUrl.length > 700000) {
+      socket.emit('message:error', { error: 'Image is too large. Please choose a smaller image.' })
+      return
+    }
 
     try {
       const message = await saveMessage({ fromUserId, toUserId, text, imageUrl })
@@ -150,7 +154,41 @@ io.on('connection', (socket) => {
         receiverId: toUserId
       })
     } catch (error) {
-      socket.emit('message:error', { error: 'Failed to send message.' })
+      console.error('message:send failed', {
+        fromUserId,
+        toUserId,
+        hasText: Boolean(text),
+        hasImage: Boolean(imageUrl),
+        code: error?.code,
+        error: error?.message
+      })
+
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2000') {
+          socket.emit('message:error', { error: 'Image is too large. Please choose a smaller image.' })
+          return
+        }
+
+        if (error.code === 'P2003') {
+          socket.emit('message:error', { error: 'Invalid sender/receiver. Please re-login and try again.' })
+          return
+        }
+
+        if (error.code === 'P2022') {
+          socket.emit('message:error', { error: 'Database schema is out of sync. Please contact support.' })
+          return
+        }
+      }
+
+      const details = String(error?.message || '')
+      if (details.includes('P2000') || details.toLowerCase().includes('value too long')) {
+        socket.emit('message:error', { error: 'Image is too large. Please choose a smaller image.' })
+        return
+      }
+
+      socket.emit('message:error', {
+        error: `Failed to send message. ${error?.message || 'Please try again.'}`
+      })
     }
   })
 

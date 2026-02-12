@@ -2,7 +2,7 @@ import React from 'react'
 import assets from '../assets/assets.js'
 
 const MAX_IMAGE_FILE_SIZE_BYTES = 8 * 1024 * 1024
-const MAX_IMAGE_DATA_URL_LENGTH = 60000
+const MAX_IMAGE_DATA_URL_LENGTH = 700000
 const MAX_DIMENSION = 768
 const QUALITY_STEPS = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3]
 const SCALE_STEPS = [1, 0.85, 0.7, 0.55, 0.4]
