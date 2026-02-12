@@ -10,6 +10,43 @@ const formatTime = (value) => {
 
 const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, onSendMessage }) => {
   const [draft, setDraft] = React.useState('')
+  const [uploadError, setUploadError] = React.useState('')
+  const fileInputRef = React.useRef(null)
+
+  const handlePickImage = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    setUploadError('')
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please select an image file.')
+      return
+    }
+
+    if (file.size > 1024 * 1024) {
+      setUploadError('Image must be 1MB or smaller.')
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const imageUrl = typeof reader.result === 'string' ? reader.result : ''
+      if (!imageUrl) {
+        setUploadError('Failed to read image.')
+        return
+      }
+      onSendMessage({ imageUrl })
+    }
+    reader.onerror = () => {
+      setUploadError('Failed to read image.')
+    }
+    reader.readAsDataURL(file)
+  }
 
   if (!selectedUser) {
     return (
@@ -67,7 +104,19 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
 
       <div className="border-t border-white/10 px-4 py-3">
         <div className="flex items-center gap-3 rounded-full bg-white/10 px-4 py-2">
-          <img src={assets.gallery_icon} alt="Gallery" className="w-5 opacity-80 cursor-pointer" />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageChange}
+          />
+          <img
+            src={assets.gallery_icon}
+            alt="Gallery"
+            className="w-5 opacity-80 cursor-pointer"
+            onClick={handlePickImage}
+          />
           <input
             type="text"
             placeholder="Type a message..."
@@ -92,6 +141,7 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
             <img src={assets.send_button} alt="Send" className="w-4" />
           </button>
         </div>
+        {uploadError ? <p className="mt-2 text-xs text-red-300">{uploadError}</p> : null}
       </div>
     </div>
   )
