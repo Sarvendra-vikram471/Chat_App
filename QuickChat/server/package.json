@@ -6,10 +6,10 @@
   "scripts": {
     "dev": "node src/index.js",
     "start": "node src/index.js",
-    "postinstall": "prisma generate",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:push": "prisma db push"
+    "postinstall": "npx prisma generate",
+    "prisma:generate": "npx prisma generate",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:push": "npx prisma db push"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
