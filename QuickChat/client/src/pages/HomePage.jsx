@@ -13,6 +13,7 @@ function HomePage() {
   const [users, setUsers] = React.useState([]);
   const [messages, setMessages] = React.useState([]);
   const [onlineUsers, setOnlineUsers] = React.useState(new Set());
+  const [chatError, setChatError] = React.useState('');
   const socketRef = React.useRef(null);
   const selectedUserRef = React.useRef(null);
   const navigate = useNavigate();
@@ -83,7 +84,12 @@ function HomePage() {
       setOnlineUsers(new Set(payload.onlineUserIds || []))
     })
 
+    socket.on('message:error', (payload) => {
+      setChatError(payload?.error || 'Failed to send message.')
+    })
+
     socket.on('message:new', (payload) => {
+      setChatError('')
       setMessages((prev) => {
         const activeUser = selectedUserRef.current
         if (!activeUser) return prev
@@ -94,6 +100,10 @@ function HomePage() {
       })
     })
 
+    socket.on('connect_error', () => {
+      setChatError('Connection lost. Please try again.')
+    })
+
     return () => {
       socket.disconnect()
     }
@@ -101,6 +111,7 @@ function HomePage() {
 
   React.useEffect(() => {
     selectedUserRef.current = selectedUser
+    setChatError('')
   }, [selectedUser])
 
   React.useEffect(() => {
@@ -112,6 +123,7 @@ function HomePage() {
 
   const handleSendMessage = async ({ text, imageUrl }) => {
     if (!socketRef.current || !currentUser || !selectedUser) return
+    setChatError('')
     socketRef.current.emit('message:send', {
       fromUserId: currentUser.id,
       toUserId: selectedUser.id,
@@ -145,6 +157,7 @@ function HomePage() {
           currentUser={currentUser}
           messages={messages}
           onSendMessage={handleSendMessage}
+          chatError={chatError}
         />
         <RightSidebar selectedUser={selectedUser} messages={messages} />
       </div>

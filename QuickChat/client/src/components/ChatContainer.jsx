@@ -1,6 +1,12 @@
 import React from 'react'
 import assets from '../assets/assets.js'
 
+const MAX_IMAGE_FILE_SIZE_BYTES = 8 * 1024 * 1024
+const MAX_IMAGE_DATA_URL_LENGTH = 60000
+const MAX_DIMENSION = 768
+const QUALITY_STEPS = [0.8, 0.7, 0.6, 0.5, 0.4, 0.3]
+const SCALE_STEPS = [1, 0.85, 0.7, 0.55, 0.4]
+
 const formatTime = (value) => {
   if (!value) return ''
   const date = new Date(value)
@@ -8,7 +14,51 @@ const formatTime = (value) => {
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, onSendMessage }) => {
+const loadImageFromFile = (file) =>
+  new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file)
+    const image = new Image()
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      resolve(image)
+    }
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl)
+      reject(new Error('Failed to process image.'))
+    }
+    image.src = objectUrl
+  })
+
+const compressImageToDataUrl = async (file) => {
+  const image = await loadImageFromFile(file)
+  const baseScale = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height))
+  const canvas = document.createElement('canvas')
+  const context = canvas.getContext('2d')
+
+  if (!context) {
+    throw new Error('Image conversion is not supported in this browser.')
+  }
+
+  for (const scaleStep of SCALE_STEPS) {
+    const width = Math.max(120, Math.round(image.width * baseScale * scaleStep))
+    const height = Math.max(120, Math.round(image.height * baseScale * scaleStep))
+    canvas.width = width
+    canvas.height = height
+    context.clearRect(0, 0, width, height)
+    context.drawImage(image, 0, 0, width, height)
+
+    for (const quality of QUALITY_STEPS) {
+      const dataUrl = canvas.toDataURL('image/webp', quality)
+      if (dataUrl.length <= MAX_IMAGE_DATA_URL_LENGTH) {
+        return dataUrl
+      }
+    }
+  }
+
+  throw new Error('Image is too large. Please choose a smaller image.')
+}
+
+const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, onSendMessage, chatError }) => {
   const [draft, setDraft] = React.useState('')
   const [uploadError, setUploadError] = React.useState('')
   const fileInputRef = React.useRef(null)
@@ -17,7 +67,7 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
     fileInputRef.current?.click()
   }
 
-  const handleImageChange = (event) => {
+  const handleImageChange = async (event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
     setUploadError('')
@@ -28,24 +78,17 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
       return
     }
 
-    if (file.size > 1024 * 1024) {
-      setUploadError('Image must be 1MB or smaller.')
+    if (file.size > MAX_IMAGE_FILE_SIZE_BYTES) {
+      setUploadError('Image must be 8MB or smaller.')
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = () => {
-      const imageUrl = typeof reader.result === 'string' ? reader.result : ''
-      if (!imageUrl) {
-        setUploadError('Failed to read image.')
-        return
-      }
+    try {
+      const imageUrl = await compressImageToDataUrl(file)
       onSendMessage({ imageUrl })
+    } catch (error) {
+      setUploadError(error.message || 'Failed to read image.')
     }
-    reader.onerror = () => {
-      setUploadError('Failed to read image.')
-    }
-    reader.readAsDataURL(file)
   }
 
   if (!selectedUser) {
@@ -142,6 +185,7 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
           </button>
         </div>
         {uploadError ? <p className="mt-2 text-xs text-red-300">{uploadError}</p> : null}
+        {!uploadError && chatError ? <p className="mt-2 text-xs text-red-300">{chatError}</p> : null}
       </div>
     </div>
   )
