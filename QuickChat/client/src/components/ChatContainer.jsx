@@ -58,7 +58,7 @@ const compressImageToDataUrl = async (file) => {
   throw new Error('Image is too large. Please choose a smaller image.')
 }
 
-const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, onSendMessage, chatError }) => {
+const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, onSendMessage, chatError, isBlocked }) => {
   const [draft, setDraft] = React.useState('')
   const [uploadError, setUploadError] = React.useState('')
   const fileInputRef = React.useRef(null)
@@ -157,16 +157,21 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
           <img
             src={assets.gallery_icon}
             alt="Gallery"
-            className="w-5 opacity-80 cursor-pointer"
-            onClick={handlePickImage}
+            className={`w-5 ${isBlocked ? 'opacity-30 cursor-not-allowed' : 'opacity-80 cursor-pointer'}`}
+            onClick={() => {
+              if (isBlocked) return
+              handlePickImage()
+            }}
           />
           <input
             type="text"
-            placeholder="Type a message..."
+            placeholder={isBlocked ? 'Unblock user to send messages...' : 'Type a message...'}
             className="flex-1 bg-transparent text-sm text-white placeholder:text-white/40 outline-none"
             value={draft}
+            disabled={isBlocked}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
+              if (isBlocked) return
               if (event.key === 'Enter' && draft.trim()) {
                 onSendMessage({ text: draft.trim() })
                 setDraft('')
@@ -174,8 +179,10 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
             }}
           />
           <button
-            className="h-9 w-9 rounded-full bg-violet-500/80 hover:bg-violet-500 flex items-center justify-center"
+            className={`h-9 w-9 rounded-full flex items-center justify-center ${isBlocked ? 'bg-white/20 cursor-not-allowed' : 'bg-violet-500/80 hover:bg-violet-500'}`}
+            disabled={isBlocked}
             onClick={() => {
+              if (isBlocked) return
               if (!draft.trim()) return
               onSendMessage({ text: draft.trim() })
               setDraft('')
@@ -184,6 +191,7 @@ const ChatContainer = ({ selectedUser, setSelectedUser, currentUser, messages, o
             <img src={assets.send_button} alt="Send" className="w-4" />
           </button>
         </div>
+        {isBlocked ? <p className="mt-2 text-xs text-red-300">You blocked this user. Unblock to continue chatting.</p> : null}
         {uploadError ? <p className="mt-2 text-xs text-red-300">{uploadError}</p> : null}
         {!uploadError && chatError ? <p className="mt-2 text-xs text-red-300">{chatError}</p> : null}
       </div>

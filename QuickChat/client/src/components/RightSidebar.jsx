@@ -1,7 +1,7 @@
 import React from 'react'
 import assets from '../assets/assets'
 
-function RightSidebar({ selectedUser, messages }) {
+function RightSidebar({ selectedUser, messages, isMuted, isBlocked, onToggleMute, onToggleBlock }) {
   if (!selectedUser) return null
 
   const sharedMedia = messages.filter((message) => message.imageUrl)
@@ -20,11 +20,19 @@ function RightSidebar({ selectedUser, messages }) {
           </div>
           <p className="text-sm text-white/70">{selectedUser.bio}</p>
           <div className="flex items-center gap-2">
-            <button className="px-4 py-2 rounded-full bg-violet-500/80 text-xs text-white hover:bg-violet-500">
-              Mute
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-full text-xs text-white ${isMuted ? 'bg-violet-500' : 'bg-violet-500/80 hover:bg-violet-500'}`}
+              onClick={() => onToggleMute?.(selectedUser.id)}
+            >
+              {isMuted ? 'Unmute' : 'Mute'}
             </button>
-            <button className="px-4 py-2 rounded-full bg-white/10 text-xs text-white hover:bg-white/20">
-              Block
+            <button
+              type="button"
+              className={`px-4 py-2 rounded-full text-xs text-white ${isBlocked ? 'bg-red-500/80 hover:bg-red-500' : 'bg-white/10 hover:bg-white/20'}`}
+              onClick={() => onToggleBlock?.(selectedUser.id)}
+            >
+              {isBlocked ? 'Unblock' : 'Block'}
             </button>
           </div>
         </div>

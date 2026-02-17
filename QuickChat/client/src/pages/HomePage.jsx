@@ -12,10 +12,16 @@ function HomePage() {
   const [currentUser, setCurrentUser] = React.useState(null);
   const [users, setUsers] = React.useState([]);
   const [messages, setMessages] = React.useState([]);
+  const [unreadCounts, setUnreadCounts] = React.useState({});
+  const [mutedUserIds, setMutedUserIds] = React.useState(new Set());
+  const [blockedUserIds, setBlockedUserIds] = React.useState(new Set());
   const [onlineUsers, setOnlineUsers] = React.useState(new Set());
   const [chatError, setChatError] = React.useState('');
   const socketRef = React.useRef(null);
   const selectedUserRef = React.useRef(null);
+  const mutedUserIdsRef = React.useRef(new Set());
+  const blockedUserIdsRef = React.useRef(new Set());
+  const lastOpenedMapRef = React.useRef({});
   const navigate = useNavigate();
 
   const avatarMap = React.useMemo(
@@ -70,6 +76,24 @@ function HomePage() {
   }, [currentUser, hydrateUser])
 
   React.useEffect(() => {
+    const muted = JSON.parse(localStorage.getItem('qc_muted_user_ids') || '[]')
+    const blocked = JSON.parse(localStorage.getItem('qc_blocked_user_ids') || '[]')
+    const lastOpened = JSON.parse(localStorage.getItem('qc_last_opened_map') || '{}')
+    setMutedUserIds(new Set(Array.isArray(muted) ? muted : []))
+    setBlockedUserIds(new Set(Array.isArray(blocked) ? blocked : []))
+    lastOpenedMapRef.current =
+      lastOpened && typeof lastOpened === 'object' && !Array.isArray(lastOpened) ? lastOpened : {}
+  }, [])
+
+  React.useEffect(() => {
+    mutedUserIdsRef.current = mutedUserIds
+  }, [mutedUserIds])
+
+  React.useEffect(() => {
+    blockedUserIdsRef.current = blockedUserIds
+  }, [blockedUserIds])
+
+  React.useEffect(() => {
     if (!currentUser) return
     const socket = io(API_BASE_URL, {
       transports: ['websocket']
@@ -90,14 +114,29 @@ function HomePage() {
 
     socket.on('message:new', (payload) => {
       setChatError('')
-      setMessages((prev) => {
-        const activeUser = selectedUserRef.current
-        if (!activeUser) return prev
-        const isForActiveChat =
-          payload.senderId === activeUser.id || payload.receiverId === activeUser.id
-        if (!isForActiveChat) return prev
-        return [...prev, payload]
-      })
+      const activeUser = selectedUserRef.current
+      const senderId = payload?.senderId
+      const isIncoming = senderId && senderId !== currentUser.id
+
+      if (senderId && blockedUserIdsRef.current.has(senderId)) {
+        return
+      }
+
+      const isForActiveChat =
+        Boolean(activeUser) &&
+        (payload.senderId === activeUser.id || payload.receiverId === activeUser.id)
+
+      if (isForActiveChat) {
+        setMessages((prev) => [...prev, payload])
+        return
+      }
+
+      if (isIncoming && !mutedUserIdsRef.current.has(senderId)) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [senderId]: (prev[senderId] || 0) + 1
+        }))
+      }
     })
 
     socket.on('connect_error', () => {
@@ -112,6 +151,21 @@ function HomePage() {
   React.useEffect(() => {
     selectedUserRef.current = selectedUser
     setChatError('')
+    if (selectedUser?.id) {
+      const nextLastOpened = {
+        ...lastOpenedMapRef.current,
+        [selectedUser.id]: Date.now()
+      }
+      lastOpenedMapRef.current = nextLastOpened
+      localStorage.setItem('qc_last_opened_map', JSON.stringify(nextLastOpened))
+
+      setUnreadCounts((prev) => {
+        if (!prev[selectedUser.id]) return prev
+        const next = { ...prev }
+        delete next[selectedUser.id]
+        return next
+      })
+    }
   }, [selectedUser])
 
   React.useEffect(() => {
@@ -121,8 +175,83 @@ function HomePage() {
       .catch(() => setMessages([]))
   }, [currentUser, selectedUser])
 
+  React.useEffect(() => {
+    if (!currentUser || users.length === 0) return
+
+    let cancelled = false
+
+    const hydrateUnreadCounts = async () => {
+      try {
+        const counts = {}
+        await Promise.all(
+          users.map(async (user) => {
+            if (blockedUserIdsRef.current.has(user.id) || mutedUserIdsRef.current.has(user.id)) return
+            if (selectedUserRef.current?.id === user.id) return
+
+            const data = await apiFetch(`/api/messages?userId=${currentUser.id}&peerId=${user.id}`)
+            const lastOpenedAt = Number(lastOpenedMapRef.current[user.id] || 0)
+            const unread = data.filter(
+              (message) =>
+                message.senderId === user.id && new Date(message.createdAt).getTime() > lastOpenedAt
+            ).length
+
+            if (unread > 0) counts[user.id] = unread
+          })
+        )
+
+        if (!cancelled) {
+          setUnreadCounts(counts)
+        }
+      } catch {
+        if (!cancelled) {
+          setUnreadCounts((prev) => prev)
+        }
+      }
+    }
+
+    hydrateUnreadCounts().catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentUser, users, mutedUserIds, blockedUserIds])
+
+  const persistSet = (key, valueSet) => {
+    localStorage.setItem(key, JSON.stringify(Array.from(valueSet)))
+  }
+
+  const toggleMuted = (userId) => {
+    setMutedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      persistSet('qc_muted_user_ids', next)
+      return next
+    })
+  }
+
+  const toggleBlocked = (userId) => {
+    setBlockedUserIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      persistSet('qc_blocked_user_ids', next)
+      return next
+    })
+  }
+
   const handleSendMessage = async ({ text, imageUrl }) => {
     if (!socketRef.current || !currentUser || !selectedUser) return
+    if (blockedUserIds.has(selectedUser.id)) {
+      setChatError('You blocked this user. Unblock to send messages.')
+      return
+    }
     setChatError('')
     socketRef.current.emit('message:send', {
       fromUserId: currentUser.id,
@@ -148,6 +277,7 @@ function HomePage() {
           setSelectedUser={setSelectedUser}
           users={users}
           onlineUsers={onlineUsers}
+          unreadCounts={unreadCounts}
           onLogout={handleLogout}
           currentUser={currentUser}
         />
@@ -158,8 +288,16 @@ function HomePage() {
           messages={messages}
           onSendMessage={handleSendMessage}
           chatError={chatError}
+          isBlocked={Boolean(selectedUser && blockedUserIds.has(selectedUser.id))}
         />
-        <RightSidebar selectedUser={selectedUser} messages={messages} />
+        <RightSidebar
+          selectedUser={selectedUser}
+          messages={messages}
+          isMuted={Boolean(selectedUser && mutedUserIds.has(selectedUser.id))}
+          isBlocked={Boolean(selectedUser && blockedUserIds.has(selectedUser.id))}
+          onToggleMute={toggleMuted}
+          onToggleBlock={toggleBlocked}
+        />
       </div>
     </div>
   )

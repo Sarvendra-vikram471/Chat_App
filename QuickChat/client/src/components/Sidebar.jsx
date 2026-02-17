@@ -4,10 +4,10 @@ import {useNavigate} from 'react-router-dom'
 
 
 
-const Sidebar = ({ selectedUser, setSelectedUser, users, onlineUsers, onLogout, currentUser }) => {
+const Sidebar = ({ selectedUser, setSelectedUser, users, onlineUsers, unreadCounts, onLogout, currentUser }) => {
   const navigate=useNavigate();
   return (
-    <div className={`h-full px-5 pt-5 pb-4 text-white bg-white/5 border-r border-white/10 overflow-y-auto ${selectedUser ? "max-md:hidden" : ''}`}>
+    <div className={`left-sidebar-scroll h-full px-5 pt-5 pb-4 text-white bg-white/5 border-r border-white/10 overflow-y-auto ${selectedUser ? "max-md:hidden" : ''}`}>
       <div className='pb-5 border-b border-white/10'>
         <div className='flex justify-between items-center'>
           <img src={assets.logo} alt="Logo" className='max-w-40'/>
@@ -44,7 +44,7 @@ const Sidebar = ({ selectedUser, setSelectedUser, users, onlineUsers, onLogout, 
         {users.length === 0 ? (
           <div className="text-xs text-white/50 px-2">No users available.</div>
         ) : (
-          users.map((user,index)=>(
+          users.map((user)=>(
             <div className={`relative flex items-center gap-3 p-2 pl-3 rounded-lg cursor-pointer max-sm:text-sm transition ${selectedUser?.id===user.id ? 'bg-white/10' : 'hover:bg-white/5'}`} key={user.id} onClick={()=>setSelectedUser(user)}>
               <img src={user?.profilePic || assets.avatar_icon} alt="" className='w-[36px] aspect-[1/1] rounded-full object-cover'/>
               <div className='flex flex-col leading-5'>
@@ -54,7 +54,11 @@ const Sidebar = ({ selectedUser, setSelectedUser, users, onlineUsers, onLogout, 
 
                 }
               </div>
-               {index>2 && <p className='absolute right-3 top-4 text-xs h-5 w-5 flex justify-center items-center rounded-full bg-violet-500/60'>{index}</p>}
+              {Boolean(unreadCounts?.[user.id]) && (
+                <p className='absolute right-3 top-4 text-xs h-5 min-w-5 px-1 flex justify-center items-center rounded-full bg-violet-500/60'>
+                  {unreadCounts[user.id]}
+                </p>
+              )}
             </div>
           ))
         )}
