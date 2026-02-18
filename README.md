@@ -97,4 +97,28 @@ cd QuickChat/client
 npm run dev
 ```
 
+## Run with Docker
+
+From `QuickChat` directory:
+
+```bash
+docker compose up --build
+```
+
+Services:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000/api/health
+- MySQL: localhost:3306
+
+Stop all containers:
+
+```bash
+docker compose down
+```
+
+Stop and remove DB volume too:
+
+```bash
+docker compose down -v
+```
 
